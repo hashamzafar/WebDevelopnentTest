@@ -18,6 +18,7 @@ export const forbiddenHandler = (err, req, res, next) => {
 export const notFoundErrorHandler = (err, req, res, next) => {
     if (err.status === 404) {
         res.status(404).send(err.message || "Error not found!")
+        console.log(err.message)
     } else {
         next(err)
     }

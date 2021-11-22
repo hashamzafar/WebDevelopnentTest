@@ -23,7 +23,7 @@ export const JWTAuthMiddleware = async (req, res, next) => {
                 next(createHttpError(404, "user not found"));
             }
         } catch (error) {
-            console.log(error);
+
             next(createHttpError(401, "token not valid"));
         }
     }

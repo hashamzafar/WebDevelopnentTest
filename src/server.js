@@ -7,14 +7,14 @@ import hostRouter from "./Services/host/index.js"
 
 const server = express()
 server.use(express.json());
-const whiteList = [process.env.DEV]// COMING FROM ENV FILE
+const whiteList = [process.env.DEV]
 
 const corsOpts = {
     origin: function (origin, next) {
         console.log('ORIGIN --> ', origin)
-        if (!origin || whiteList.indexOf(origin) !== -1) { // if received origin is in the whitelist I'm going to allow that request
+        if (!origin || whiteList.indexOf(origin) !== -1) {
             next(null, true)
-        } else { // if it is not, I'm going to reject that request
+        } else {
             next(new Error(`Origin ${origin} not allowed!`))
         }
     }
@@ -22,6 +22,7 @@ const corsOpts = {
 
 
 server.use(cors(corsOpts))
+server.use(express.json({ limit: '500mb', extended: true }))
 //Router
 server.use("/host", hostRouter)
 

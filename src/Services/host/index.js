@@ -7,27 +7,43 @@ import {
     verifyRefreshAndGenerateTokens,
 } from "../../Authorization/tools.js";
 import { JWTAuthMiddleware } from "../../Authorization/token.js";
-import { imageUpload } from "../../Tools/multerTools.js"
+import passport from "passport"
 
+import multer from "multer";
+import cloudinary from "../../Tools/cloudinary.js";
+import { CloudinaryStorage } from "multer-storage-cloudinary";
 
+const cloudinaryStorage = new CloudinaryStorage({
+    cloudinary,
+    params: {
+        folder: "web-develop-profile",
+    },
+});
+const parser = multer({ storage: cloudinaryStorage })
 const hostRouter = express.Router()
-
-//Register
-hostRouter.post("/register", async (req, res, next) => {
-
+hostRouter.get("/loginuser", JWTAuthMiddleware, async (req, res, next) => {
     try {
-        const newUser = new HostModel(req.body);
-        const { refreshToken } = await JWTAuthenticate(newUser);
-        await newUser.save();
-        res.status(200).send(newUser);
-        console.log(newUser)
+        const user = await HostModel.findOne(req.user)
+        res.send(user);
     } catch (error) {
         next(error);
     }
-})
+});
+// get all users
+hostRouter.get("/users", async (req, res, next) => {
+    try {
+        const user = await HostModel.find()
+
+        res.send(user);
+
+    } catch (error) {
+        next(error);
+    }
+});
+
 hostRouter.get("/register", JWTAuthMiddleware, async (req, res, next) => {
     try {
-        // const filters = req.query;
+
         const { username, email } = req.query;
         if (username || email) {
             const filteredUsers = await UserModel.find({
@@ -46,8 +62,37 @@ hostRouter.get("/register", JWTAuthMiddleware, async (req, res, next) => {
         next(error);
     }
 });
+//Register
+hostRouter.post("/register", async (req, res, next) => {
+
+    try {
+        const newUser = new HostModel(req.body);
+        const { refreshToken } = await JWTAuthenticate(newUser);
+        const { _id } = await newUser.save();
+        res.status(200).send(_id);
+
+    } catch (error) {
+        next(error);
+    }
+})
+// picture upload on cloudinary
+
+hostRouter.post(
+    "/:_id/uploadprofile", parser.single("picture"),
+    async (req, res, next) => {
+        try {
+            if (req.file) {
+                const update = { picture: req.file.path }
+                await HostModel.findByIdAndUpdate(req.params._id, update, { returnOriginal: true })
+                res.status(201).send("picture");
+            } else res.status(500).send("no image")
 
 
+        } catch (err) {
+            next(err);
+        }
+    }
+);
 // userinfo
 hostRouter.get("/:id", JWTAuthMiddleware, async (req, res, next) => {
     try {
@@ -60,14 +105,13 @@ hostRouter.get("/:id", JWTAuthMiddleware, async (req, res, next) => {
     }
 });
 
-
 // Login
 hostRouter.post("/loginuser", async (req, res, next) => {
     try {
         const { email } = req.body
-        const user = await HostModel.checkCredentials(email)
-        if (user) {
-            const { accessToken, refreshToken } = await JWTAuthenticate(user)
+        const host = await HostModel.checkCredentials(email)
+        if (host) {
+            const { accessToken, refreshToken } = await JWTAuthenticate(host)
             res.send({ accessToken, refreshToken })
         } else {
             next(createHttpError(401, "Credentials are not correct please register"))
@@ -76,49 +120,41 @@ hostRouter.post("/loginuser", async (req, res, next) => {
         next(error)
     }
 })
-hostRouter.get("/me", JWTAuthMiddleware, async (req, res, next) => {
+// google oauth20
+hostRouter.get("/googleLogin", passport.authenticate("google", { scope: ["profile", "email"] }))
+
+hostRouter.get("/googleRedirect", passport.authenticate("google"), async (req, res, next) => {
     try {
-        console.log("hello", req)
-        res.send(req.user);
-        console.log("coming deom me", req.body)
+        n
+        res.redirect(`http://localhost:3000?accessToken=${req.user.tokens.accessToken}&refreshToken=${req.user.tokens.refreshToken}`)
     } catch (error) {
-        next(error);
+        next(error)
     }
-});
-// hostRouter.put("/me", JWTAuthMiddleware, async (req, res, next) => {
-//     try {
-//         // const { email, username } = req.body;
-//         const updatedProfile = await UserModel.findByIdAndUpdate(
-//             req.user._id,
-//             req.body,
-//             { new: true }
-//         );
-//         res.send(updatedProfile);
-//     } catch (error) {
-//         next(error);
-//         console.log("error is here", error);
-//     }
-// });
-// profile image upload
-hostRouter.post(
-    "/uploadprofile",
+})
+// edit request
+hostRouter.put(
+    "/:_id",
     JWTAuthMiddleware,
-    imageUpload.single("avatar"),
+
     async (req, res, next) => {
+        const edit = req.params._id;
         try {
-            const picturePath = req.file.path;
-            const userPicture = await HostModel.findByIdAndUpdate(
-                req.user._id,
-                { picture: picturePath },
+
+            const updatedHost = await HostModel.findByIdAndUpdate(
+                edit,
+                { $set: req.body },
                 { new: true }
             );
-            res.status(201).send(userPicture);
-        } catch (err) {
-            next(err);
+            if (updatedHost) {
+                res.status(200).send(updatedHost);
+            } else {
+                next(createHttpError(404, "Host not found"));
+            }
+        } catch (error) {
+            next(error);
         }
     }
 );
-hostRouter.get("/getprofile")
 
 
 export default hostRouter
